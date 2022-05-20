@@ -1,0 +1,67 @@
+version: "3"
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "14250"
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+#      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+#      - '--storage.tsdb.path=/prometheus'
+#      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+#      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+#    links:
+#      - cadvisor:cadvisor
+#      - alertmanager:alertmanager
+#    depends_on:
+#      - cadvisor
+    networks:
+      observability:
+
+  grafana:
+    image: grafana/grafana
+    user: "472"
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+#    volumes:
+#      - grafana_data:/var/lib/grafana
+#      - ./grafana/provisioning/:/etc/grafana/provisioning/
+#    env_file:
+#      - ./grafana/config.monitoring
+#    restart: always
+    networks:
+      observability:
+
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otelcollector
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "55679:55679" # zpages extension
+      - "4317:4317"
+    depends_on:
+      - prometheus
+      - jaeger
+    networks:
+      observability:
+
+networks:
+  observability:
+    driver: bridge
